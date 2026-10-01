@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pembayaran WiFi - Auto Save</title>
+<style>
+html{scroll-behavior:smooth}
+body{overflow-x:hidden}
+.header-actions{display:flex;align-items:center;gap:8px}
+.save-status{font-size:12px;background:#ffffff22;padding:6px 9px;border-radius:7px}
+.toolbar label{display:flex;align-items:center;gap:5px}
+.table-wrap{width:100%;-webkit-overflow-scrolling:touch}
+.status{touch-action:manipulation}
+@media(max-width:800px){
+  header{padding:14px 12px}
+  header h1{font-size:18px}
+  header small{font-size:11px}
+  .container{margin:12px auto;padding:0 10px}
+  .cards{grid-template-columns:repeat(2,1fr);gap:8px}
+  .card{padding:12px 10px}
+  .card .value{font-size:20px}
+  .toolbar{padding:10px;gap:8px}
+  .toolbar label,.toolbar select,.toolbar input,.toolbar button{width:100%}
+  .toolbar label select{width:auto;flex:1}
+  .toolbar input{min-width:0}
+  .table-wrap{border-radius:10px}
+  table{min-width:980px}
+  th,td{padding:8px 7px}
+  .status{min-width:108px;padding:8px 9px;font-size:11px}
+  .modal{width:100%;padding:16px}
+  .form-grid{grid-template-columns:1fr}
+  .actions button{min-height:42px}
+  .footer{font-size:11px;line-height:1.5}
+}
+@media(max-width:420px){
+  .header-actions{flex-direction:column;align-items:stretch}
+  .save-status{text-align:center}
+  header .btn-secondary{width:100%}
+}
+
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f4f7f8;color:#263238}
+header{background:#16a085;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:15px}
+header h1{margin:0;font-size:22px}
+header small{opacity:.9}
+.container{max-width:1400px;margin:20px auto;padding:0 18px}
+.cards{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px}
+.card{background:white;border-radius:12px;padding:16px;box-shadow:0 2px 8px #00000012}
+.card .label{font-size:13px;color:#607d8b}.card .value{font-size:25px;font-weight:700;margin-top:7px}
+.toolbar{background:#fff;border-radius:12px;padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;box-shadow:0 2px 8px #00000012}
+input,select,button{font:inherit}
+input,select{padding:9px 11px;border:1px solid #cfd8dc;border-radius:8px;background:#fff}
+button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer}
+.btn-primary{background:#16a085;color:white}.btn-secondary{background:#ecf0f1;color:#263238}.btn-danger{background:#e74c3c;color:#fff}
+.table-wrap{background:#fff;border-radius:12px;box-shadow:0 2px 8px #00000012;overflow:auto}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th,td{border-bottom:1px solid #e6ecef;padding:9px 8px;text-align:center;white-space:nowrap}
+th{background:#455a64;color:#fff;position:sticky;top:0;z-index:2}
+th.name,td.name{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
+th.name{background:#455a64;z-index:3}
+.no{width:55px}
+.status{min-width:95px;padding:7px 10px;border-radius:15px;font-weight:700;font-size:12px;border:0}
+.paid{background:#d9f2c7;color:#237a20}.unpaid{background:#e74c3c;color:#fff}
+.empty{background:#eceff1;color:#607d8b}.notstarted{background:#fff3cd;color:#856404}
+.footer{margin:14px 0;color:#607d8b;font-size:12px}
+.modal-bg{display:none;position:fixed;inset:0;background:#0008;align-items:center;justify-content:center;padding:20px;z-index:10}
+.modal{background:#fff;border-radius:14px;padding:20px;width:min(500px,100%);box-shadow:0 10px 30px #0006}
+.modal h2{margin-top:0}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-grid label{font-size:13px;color:#546e7a}.form-grid input{width:100%;margin-top:5px}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>PEMBAYARAN WIFI</h1><small>Pencatatan pembayaran pelanggan</small></div>
+  <div class="header-actions"><span class="save-status" id="saveStatus">✓ Data tersimpan</span><button class="btn-secondary" onclick="openCustomer()">+ Pelanggan</button></div>
+</header>
+
+<div class="container">
+  <div class="cards">
+    <div class="card"><div class="label">Pelanggan</div><div class="value" id="total">0</div></div>
+    <div class="card"><div class="label">Sudah Bayar</div><div class="value" id="paidCount">0</div></div>
+    <div class="card"><div class="label">Belum Bayar</div><div class="value" id="unpaidCount">0</div></div>
+    <div class="card"><div class="label">Belum Mulai Langganan</div><div class="value" id="notStartedCount">0</div></div>
+    <div class="card"><div class="label">Total Pemasukan</div><div class="value" id="income">Rp0</div></div>
+  </div>
+
+  <div class="toolbar">
+    <label>Tahun:
+      <select id="year" onchange="render()">
+        <option value="2026" selected>2026</option>
+        <option value="2027">2027</option>
+        <option value="2028">2028</option>
+        <option value="2029">2029</option>
+        <option value="2030">2030</option>
+      </select>
+    </label>
+    <label>Bulan:
+      <select id="month" onchange="render()">
+        <option>Agustus</option><option>September</option><option selected>Oktober</option>
+        <option>November</option><option>Desember</option>
+      </select>
+    </label>
+    <select id="filter" onchange="render()">
+      <option value="all">Semua</option><option value="paid">Sudah Bayar</option>
+      <option value="unpaid">Belum Bayar</option><option value="cash">CASH</option><option value="tf">TF</option><option value="notstarted">Belum Mulai Langganan</option>
+    </select>
+    <input id="search" placeholder="Cari nama pelanggan..." oninput="render()">
+    <button class="btn-secondary" onclick="save();showSaved()">Simpan Sekarang</button><button class="btn-secondary" onclick="exportData()">Backup Data</button>
+    <button class="btn-secondary" onclick="document.getElementById('importFile').click()">Import Data</button>
+    <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(event)">
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th class="no">NO</th><th class="name">NAMA</th>
+        <th>AGUSTUS</th><th>SEPTEMBER</th><th>OKTOBER</th><th>NOVEMBER</th><th>DESEMBER</th><th>PAKET BULANAN</th><th>AKSI</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="footer">Klik status untuk mengubah: BELUM → CASH → TF → BELUM MULAI LANGGANAN → BELUM. Data otomatis tersimpan di browser. Gunakan Backup Data untuk memindahkan data ke HP/perangkat lain.</div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">Tambah Pelanggan</h2>
+    <div class="form-grid">
+      <label>Nama<input id="fName"></label>
+      <label>No. HP<input id="fPhone"></label>
+      <label>Paket Bulanan<input id="fPrice" type="number" placeholder="150000"></label>
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="closeModal()">Batal</button>
+      <button class="btn-primary" onclick="saveCustomer()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const months=["Agustus","September","Oktober","November","Desember"];
+const years=[2026,2027,2028,2029,2030];
+let selectedYear=2026;
+const DATA_VERSION="wifi-auto-save-v4";
+let customers=loadSavedCustomers();
+function loadSavedCustomers(){
+  const defaultCustomers=[{"name":"Rohmadi","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rina Hari","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Muktinem","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Yusuf","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Mas Rofiq","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Anggit","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rusmiyati","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Linda/Sujarwo","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rini Danang","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nina","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nur Hidayat","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Tama","price":100000,"pay":{"Agustus":"CASH","September":"TF","Oktober":"TF","November":"BELUM","Desember":"BELUM"}},{"name":"Destin","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rendi","price":100000,"pay":{"Agustus":"CASH","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Pramono","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Seto","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sudaryanto","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Purwodianto","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Aris Hidayat","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Ridho/Fika","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Zen","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sunardi","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nanang Sudrajad","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Bambang Heru","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nunung/Edi","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Umi/Siswoyo","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Amin","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sutrasno","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Mbak Lilis","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Esa/Sidik","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Gunawan","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"CASH","November":"BELUM","Desember":"BELUM"}},{"name":"Warni/Pranoto","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sudarmadi","price":100000,"pay":{"Agustus":"BELUM","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Tarom","price":100000,"pay":{"Agustus":"BELUM","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}}];
+  try{
+    const main=localStorage.getItem("wifiCustomersWiFi");
+    const backup=localStorage.getItem("wifiCustomersWiFi_backup");
+    const raw=main||backup;
+
+    if(raw){
+      const saved=JSON.parse(raw);
+      if(Array.isArray(saved) && saved.length>0){
+        const byName={};
+        saved.forEach(c=>{
+          if(c && c.name) byName[String(c.name).trim().toLowerCase()]=c;
+        });
+
+        // Pertahankan semua 34 pelanggan bawaan + pelanggan tambahan.
+        // Data tersimpan untuk nama yang sama tetap dipakai.
+        const result = defaultCustomers.map(base=>{
+          const old=byName[String(base.name).trim().toLowerCase()];
+          if(!old) return base;
+          return {...base,...old};
+        });
+
+        // Tambahkan pelanggan baru yang tidak ada di daftar bawaan.
+        const defaultNames = new Set(
+          defaultCustomers.map(c=>String(c.name).trim().toLowerCase())
+        );
+        saved.forEach(c=>{
+          if(c && c.name){
+            const key=String(c.name).trim().toLowerCase();
+            if(!defaultNames.has(key)){
+              result.push(c);
+            }
+          }
+        });
+
+        return result;
+      }
+    }
+  }catch(e){
+    console.warn("Gagal membaca data lama, menggunakan 34 pelanggan.",e);
+  }
+  return defaultCustomers;
+}
+function showSaved(){
+  const el=document.getElementById("saveStatus");
+  if(el) el.textContent="✓ Data tersimpan";
+}
+function save(){
+  const data=JSON.stringify(customers);
+  try{
+    localStorage.setItem("wifiCustomersWiFi",data);
+    localStorage.setItem("wifiCustomersWiFi_backup",data);
+    localStorage.setItem("wifiCustomersWiFi_savedAt",new Date().toISOString());
+    showSaved();
+  }catch(e){alert("Penyimpanan browser penuh. Gunakan Backup Data.");}
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+
+function getPay(c,year,month){
+  c.payments=c.payments||{};
+  c.payments[year]=c.payments[year]||{};
+  return c.payments[year][month]||"BELUM";
+}
+function setPay(c,year,month,value){
+  c.payments=c.payments||{};
+  c.payments[year]=c.payments[year]||{};
+  c.payments[year][month]=value;
+}
+function migrateOldPayments(){
+  customers.forEach(c=>{
+    if(!c.payments){
+      c.payments={};
+      c.payments[2026]=c.pay||{};
+    }
+  });
+  save();
+}
+migrateOldPayments();
+localStorage.setItem("wifiDataVersion",DATA_VERSION);
+save();
+
+function render(){
+ const m=document.getElementById("month").value, filter=document.getElementById("filter").value, q=document.getElementById("search").value.toLowerCase();
+ selectedYear=Number(document.getElementById("year").value);
+ const rows=customers.filter(c=>c.name.toLowerCase().includes(q)).filter(c=>{
+   const v=getPay(c,selectedYear,m).toLowerCase();
+   return filter==="all"|| (filter==="paid"&&(v==="cash"||v==="tf")) || (filter==="unpaid"&&v==="belum") || (filter==="notstarted"&&v==="belum mulai langganan") || v===filter;
+ });
+ let paid=0,unpaid=0,notStarted=0,income=0;
+ customers.forEach(c=>{
+   const v=getPay(c,selectedYear,m);
+   if(v==="CASH"||v==="TF"){
+     paid++;
+     income+=Number(c.price||0);
+   }else if(v==="BELUM MULAI LANGGANAN"){
+     notStarted++;
+   }else{
+     unpaid++;
+   }
+ });
+ document.getElementById("total").textContent=customers.length;
+ document.getElementById("paidCount").textContent=paid;
+ document.getElementById("unpaidCount").textContent=unpaid;
+ document.getElementById("notStartedCount").textContent=notStarted;
+ document.getElementById("income").textContent="Rp"+income.toLocaleString("id-ID");
+ document.getElementById("tbody").innerHTML=rows.map((c,i)=>`<tr>
+ <td>${customers.indexOf(c)+1}</td><td class="name"><b>${esc(c.name)}</b></td>
+ ${months.map(x=>statusCell(c,x)).join("")}
+ <td>${c.price?("Rp"+Number(c.price).toLocaleString("id-ID")):"-"}</td>
+ <td><button class="btn-secondary" onclick="openCustomer(${customers.indexOf(c)})">Edit</button>
+ <button class="btn-danger" onclick="removeCustomer(${customers.indexOf(c)})">Hapus</button></td></tr>`).join("");
+}
+function statusCell(c,m){
+ const v=getPay(c,selectedYear,m);
+ const cls=v==="BELUM"?"unpaid":(v==="BELUM MULAI LANGGANAN"?"notstarted":"paid");
+ return `<td><button class="status ${cls}" onclick="cycle(${customers.indexOf(c)},'${m}')">${v}</button></td>`;
+}
+function cycle(i,m){
+ const order=["BELUM","CASH","TF","BELUM MULAI LANGGANAN"];
+ const v=getPay(customers[i],selectedYear,m);
+ setPay(customers[i],selectedYear,m,order[(order.indexOf(v)+1)%order.length]);
+ save();render()
+}
+let editIndex=null;
+function openCustomer(i=null){
+ editIndex=i;
+ document.getElementById("modalTitle").textContent=i===null?"Tambah Pelanggan":"Edit Pelanggan";
+ const c=i===null?{name:"",phone:"",price:""}:customers[i];
+ fName.value=c.name;fPhone.value=c.phone||"";fPrice.value=c.price||"";
+ document.getElementById("modal").style.display="flex";
+}
+function closeModal(){document.getElementById("modal").style.display="none"}
+function saveCustomer(){
+ const name=fName.value.trim();if(!name){alert("Nama pelanggan wajib diisi.");return}
+ const obj={name,phone:fPhone.value.trim(),price:Number(fPrice.value||100000),pay:{}};
+ if(editIndex===null){
+   obj.payments={};
+   years.forEach(y=>{obj.payments[y]={};months.forEach(m=>obj.payments[y][m]="BELUM")});
+   customers.push(obj)
+ } else {
+   obj.payments=customers[editIndex].payments||{};
+   customers[editIndex]=obj
+ }
+ save();closeModal();render();
+}
+function removeCustomer(i){if(confirm("Hapus pelanggan "+customers[i].name+"?")){customers.splice(i,1);save();render()}}
+function exportData(){
+ const blob=new Blob([JSON.stringify(customers,null,2)],{type:"application/json"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-pembayaran-wifi-2026.json";a.click();URL.revokeObjectURL(a.href)
+}
+function importData(e){
+ const file=e.target.files[0];if(!file)return;const r=new FileReader();
+ r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data))throw 0;customers=data;migrateOldPayments();save();render();alert("Data berhasil diimpor.")}catch{alert("File backup tidak valid.")}};
+ r.readAsText(file);e.target.value="";
+}
+render();
+window.addEventListener("beforeunload",()=>{try{save()}catch(e){}});
+window.addEventListener("pagehide",()=>{try{save()}catch(e){}});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){try{save()}catch(e){}}});
+</script>
+</body>
+</html>
