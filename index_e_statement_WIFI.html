@@ -97,8 +97,9 @@ th.name{background:#455a64;z-index:3}
     </label>
     <label>Bulan:
       <select id="month" onchange="render()">
-        <option>Agustus</option><option>September</option><option selected>Oktober</option>
-        <option>November</option><option>Desember</option>
+        <option>Januari</option><option>Februari</option><option>Maret</option><option>April</option>
+        <option>Mei</option><option>Juni</option><option>Juli</option><option>Agustus</option>
+        <option>September</option><option selected>Oktober</option><option>November</option><option>Desember</option>
       </select>
     </label>
     <select id="filter" onchange="render()">
@@ -109,6 +110,7 @@ th.name{background:#455a64;z-index:3}
     <button class="btn-secondary" onclick="save();showSaved()">Simpan Sekarang</button>
     <button class="btn-primary" onclick="openEStatement()">📄 E-Statement</button>
     <button class="btn-primary" onclick="downloadMonthlyReport()">📊 Laporan Bulanan</button>
+    <button class="btn-primary" onclick="downloadYearlyReport()">📈 Rekap 1 Tahun</button>
     <button class="btn-secondary" onclick="exportData()">Backup Data</button>
     <button class="btn-secondary" onclick="document.getElementById('importFile').click()">Import Data</button>
     <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(event)">
@@ -117,12 +119,12 @@ th.name{background:#455a64;z-index:3}
   <div class="table-wrap">
     <table>
       <thead><tr><th class="no">NO</th><th class="name">NAMA</th>
-        <th>AGUSTUS</th><th>SEPTEMBER</th><th>OKTOBER</th><th>NOVEMBER</th><th>DESEMBER</th><th>PAKET BULANAN</th><th>AKSI</th>
+        <th>JANUARI</th><th>FEBRUARI</th><th>MARET</th><th>APRIL</th><th>MEI</th><th>JUNI</th><th>JULI</th><th>AGUSTUS</th><th>SEPTEMBER</th><th>OKTOBER</th><th>NOVEMBER</th><th>DESEMBER</th><th>PAKET BULANAN</th><th>AKSI</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
-  <div class="footer">Klik status untuk mengubah: BELUM → CASH → TF → BELUM MULAI LANGGANAN → BELUM. Data otomatis tersimpan di browser. Gunakan Backup Data untuk memindahkan data ke HP/perangkat lain.</div>
+  <div class="footer">PDF dapat diunduh langsung. Jika browser memblokir download, izinkan download untuk situs ini. Klik status untuk mengubah: BELUM → CASH → TF → BELUM MULAI LANGGANAN → BELUM. Data otomatis tersimpan di browser. Gunakan Backup Data untuk memindahkan data ke HP/perangkat lain.</div>
 </div>
 
 <div class="modal-bg" id="modal">
@@ -156,12 +158,13 @@ th.name{background:#455a64;z-index:3}
       <label>Jenis
         <select id="statementType" style="width:100%;margin-top:5px">
           <option value="individual">E-Statement Per Pelanggan</option>
-          <option value="monthly">Rekap Semua Pelanggan</option>
+          <option value="monthly">Rekap Semua Pelanggan (1 Bulan)</option>
+          <option value="yearly">Rekap 1 Tahun (Januari–Desember)</option>
         </select>
       </label>
     </div>
     <div class="modal-note">
-      E-Statement per pelanggan cocok seperti tagihan bulanan. Rekap semua pelanggan membuat satu PDF berisi status dan pemasukan pada bulan yang dipilih.
+      E-Statement per pelanggan cocok seperti tagihan bulanan. Rekap semua pelanggan membuat satu PDF berisi status dan pemasukan pada bulan yang dipilih. Rekap 1 Tahun membuat laporan Januari–Desember untuk tahun yang dipilih.
     </div>
     <div class="actions">
       <button class="btn-secondary" onclick="closeEStatement()">Batal</button>
@@ -172,7 +175,7 @@ th.name{background:#455a64;z-index:3}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const months=["Agustus","September","Oktober","November","Desember"];
+const months=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const years=[2026,2027,2028,2029,2030];
 let selectedYear=2026;
 const DATA_VERSION="wifi-auto-save-v4";
@@ -329,7 +332,21 @@ function removeCustomer(i){if(confirm("Hapus pelanggan "+customers[i].name+"?"))
 function rupiah(n){return "Rp"+Number(n||0).toLocaleString("id-ID");}
 function safeFileName(s){return String(s||"").replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").substring(0,60)||"pelanggan";}
 function statementNo(i,year,month){const mi=Math.max(1,months.indexOf(month)+1);return "ES-"+year+String(mi).padStart(2,"0")+"-"+String(i+1).padStart(4,"0");}
-function getJsPDF(){if(!window.jspdf||!window.jspdf.jsPDF){alert("Modul PDF belum termuat. Pastikan internet aktif, lalu coba lagi.");return null;}return window.jspdf.jsPDF;}
+async function getJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  // Coba CDN cadangan jika CDN utama gagal dimuat.
+  try{
+    await new Promise((resolve,reject)=>{
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+      s.onload=resolve;s.onerror=reject;
+      document.head.appendChild(s);
+    });
+  }catch(e){}
+  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  alert("Modul PDF tidak berhasil dimuat. Pastikan internet aktif, lalu coba lagi. Jika masih gagal, gunakan tombol Cetak/Simpan PDF pada halaman laporan.");
+  return null;
+}
 function openEStatement(){
   const cs=document.getElementById("statementCustomer");
   cs.innerHTML=customers.map((c,i)=>`<option value="${i}">${esc(c.name)}</option>`).join("");
@@ -346,6 +363,7 @@ function downloadSelectedStatement(){
   const m=document.getElementById("statementMonth").value;
   closeEStatement();
   if(type==="monthly") downloadMonthlyReport(y,m);
+  else if(type==="yearly") downloadYearlyReport(y);
   else downloadEStatement(Number(document.getElementById("statementCustomer").value),y,m);
 }
 function pdfHeader(doc,title,subtitle){
@@ -363,8 +381,8 @@ function pdfFooter(doc){
     doc.setTextColor(0);
   }
 }
-function downloadEStatement(i,year=selectedYear,month=document.getElementById("month").value){
-  const JsPDF=getJsPDF();if(!JsPDF)return;
+async function downloadEStatement(i,year=selectedYear,month=document.getElementById("month").value){
+  const JsPDF=await getJsPDF();if(!JsPDF)return;
   const c=customers[i];if(!c){alert("Pelanggan tidak ditemukan.");return;}
   const doc=new JsPDF({unit:"mm",format:"a4"});
   const status=getPay(c,year,month);
@@ -387,8 +405,8 @@ function downloadEStatement(i,year=selectedYear,month=document.getElementById("m
   pdfFooter(doc);
   doc.save(`E-Statement-${safeFileName(c.name)}-${safeFileName(month)}-${year}.pdf`);
 }
-function downloadMonthlyReport(year=selectedYear,month=document.getElementById("month").value){
-  const JsPDF=getJsPDF();if(!JsPDF)return;
+async function downloadMonthlyReport(year=selectedYear,month=document.getElementById("month").value){
+  const JsPDF=await getJsPDF();if(!JsPDF)return;
   const doc=new JsPDF({unit:"mm",format:"a4"});
   const paidRows=customers.filter(c=>{const v=getPay(c,year,month);return v==="CASH"||v==="TF";});
   const income=paidRows.reduce((s,c)=>s+Number(c.price||0),0);
@@ -411,9 +429,65 @@ function downloadMonthlyReport(year=selectedYear,month=document.getElementById("
   pdfFooter(doc);
   doc.save(`Laporan-Pembayaran-${safeFileName(month)}-${year}.pdf`);
 }
+
+async function downloadYearlyReport(year=selectedYear){
+  const JsPDF=await getJsPDF();if(!JsPDF)return;
+  const doc=new JsPDF({unit:"mm",format:"a4"});
+  const printed=new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
+  pdfHeader(doc,"REKAP PEMBAYARAN 1 TAHUN",`Periode Januari–Desember ${year} • Dicetak ${printed}`);
+
+  doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("RINGKASAN TAHUNAN",20,53);
+  let totalIncome=0,totalPaid=0;
+  const monthly=months.map((month,idx)=>{
+    const paidRows=customers.filter(c=>{
+      const v=getPay(c,year,month);
+      return v==="CASH"||v==="TF";
+    });
+    const income=paidRows.reduce((s,c)=>s+Number(c.price||0),0);
+    const notStarted=customers.filter(c=>getPay(c,year,month)==="BELUM MULAI LANGGANAN").length;
+    const unpaid=customers.length-paidRows.length-notStarted;
+    totalIncome+=income; totalPaid+=paidRows.length;
+    return {no:idx+1,month,paid:paidRows.length,unpaid,notStarted,income};
+  });
+
+  doc.setFont("helvetica","normal");doc.setFontSize(9);
+  doc.text(`Total pelanggan: ${customers.length}`,20,61);
+  doc.text(`Total transaksi lunas: ${totalPaid}`,20,68);
+  doc.setFont("helvetica","bold");doc.text(`Total pemasukan setahun: ${rupiah(totalIncome)}`,20,77);
+
+  let y=90;
+  const headers=["No","Bulan","Sudah Bayar","Belum Bayar","Belum Mulai","Pemasukan"];
+  const xs=[20,31,72,105,140,190];
+
+  function drawYearHeader(){
+    doc.setFont("helvetica","bold");doc.setFontSize(8);
+    headers.forEach((h,k)=>doc.text(h,xs[k],y,{align:k===5?"right":"left"}));
+    doc.line(20,y+2,190,y+2);
+    y+=8;
+    doc.setFont("helvetica","normal");
+  }
+
+  drawYearHeader();
+  monthly.forEach(row=>{
+    const vals=[String(row.no),row.month,String(row.paid),String(row.unpaid),String(row.notStarted),rupiah(row.income)];
+    vals.forEach((val,k)=>doc.text(val,xs[k],y,{align:k===5?"right":"left"}));
+    y+=7;
+  });
+
+  y+=5;
+  doc.setFont("helvetica","bold");doc.setFontSize(10);
+  doc.text("CATATAN",20,y);
+  doc.setFont("helvetica","normal");doc.setFontSize(8);
+  doc.text("Angka mengikuti status pembayaran yang tersimpan di aplikasi.",20,y+8);
+  doc.text("Bulan yang belum memiliki pembayaran akan tercatat sebagai BELUM.",20,y+15);
+
+  pdfFooter(doc);
+  doc.save(`Rekap-Pembayaran-1-Tahun-${year}.pdf`);
+}
+
 function exportData(){
  const blob=new Blob([JSON.stringify(customers,null,2)],{type:"application/json"});
- const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-pembayaran-wifi-2026.json";a.click();URL.revokeObjectURL(a.href)
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-pembayaran-wifi.json";a.click();URL.revokeObjectURL(a.href)
 }
 function importData(e){
  const file=e.target.files[0];if(!file)return;const r=new FileReader();
