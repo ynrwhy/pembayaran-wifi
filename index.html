@@ -68,12 +68,31 @@ th.name{background:#455a64;z-index:3}
 .modal{background:#fff;border-radius:14px;padding:20px;width:min(500px,100%);box-shadow:0 10px 30px #0006}.modal-wide{width:min(720px,100%)}.modal-note{font-size:12px;color:#607d8b;line-height:1.5;margin-top:8px}
 .modal h2{margin-top:0}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.form-grid label{font-size:13px;color:#546e7a}.form-grid input{width:100%;margin-top:5px}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 @media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}}
+.auth-disabled{opacity:.7;cursor:default!important}.viewer-note{font-size:12px;color:#607d8b;margin:0 0 12px}
 </style>
 </head>
 <body>
+<div id="authScreen" class="modal-bg" style="display:flex;background:#f4f7f8;z-index:100;padding:20px">
+  <div class="modal" style="width:min(420px,100%);box-shadow:0 10px 30px #0003">
+    <h2>🔐 Pembayaran WiFi</h2>
+    <p style="color:#607d8b">Masuk menggunakan akun yang sudah diberi akses.</p>
+    <label>Email<input id="loginEmail" type="email" autocomplete="username" style="width:100%;margin-top:5px"></label>
+    <label style="display:block;margin-top:12px">Password<input id="loginPassword" type="password" autocomplete="current-password" style="width:100%;margin-top:5px"></label>
+    <div class="actions">
+      <button class="btn-primary" onclick="login()" style="width:100%">Masuk</button>
+    </div>
+    <div id="loginMsg" style="font-size:13px;color:#e74c3c;margin-top:10px"></div>
+  </div>
+</div>
+
 <header>
   <div><h1>PEMBAYARAN WIFI</h1><small>Pencatatan pembayaran pelanggan</small></div>
-  <div class="header-actions"><span class="save-status" id="saveStatus">✓ Data tersimpan</span><button class="btn-secondary" onclick="openCustomer()">+ Pelanggan</button></div>
+  <div class="header-actions">
+    <span class="save-status" id="saveStatus">Belum masuk</span>
+    <span class="save-status" id="userInfo" style="display:none"></span>
+    <button class="btn-secondary" id="addCustomerBtn" onclick="openCustomer()" style="display:none">+ Pelanggan</button>
+    <button class="btn-secondary" id="logoutBtn" onclick="logout()" style="display:none">Keluar</button>
+  </div>
 </header>
 
 <div class="container">
@@ -173,178 +192,363 @@ th.name{background:#455a64;z-index:3}
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
+/* =========================
+   SUPABASE CONFIG
+   Ganti HANYA 2 nilai ini:
+   1. SUPABASE_URL
+   2. SUPABASE_KEY (Publishable key / anon key)
+   ========================= */
+const SUPABASE_URL="https://bkfljgqszrhmlodtlacr.supabase.co";
+const SUPABASE_KEY="sb_publishable_CN66Bs-42WWGcZ4htx_Z0w_PyxBRx4g";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
 const months=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const years=[2026,2027,2028,2029,2030];
 let selectedYear=2026;
-const DATA_VERSION="wifi-auto-save-v4";
-let customers=loadSavedCustomers();
+const DATA_VERSION="wifi-supabase-admin-viewer-v1";
+let customers=[];
+let payments=[];
+let role="viewer";
+let currentUser=null;
+let editIndex=null;
+
+/* Data lama di browser dipakai hanya untuk migrasi awal ke Supabase. */
 function loadSavedCustomers(){
   const defaultCustomers=[{"name":"Rohmadi","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rina Hari","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Muktinem","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Yusuf","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Mas Rofiq","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Anggit","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rusmiyati","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Linda/Sujarwo","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rini Danang","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nina","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nur Hidayat","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Tama","price":100000,"pay":{"Agustus":"CASH","September":"TF","Oktober":"TF","November":"BELUM","Desember":"BELUM"}},{"name":"Destin","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Rendi","price":100000,"pay":{"Agustus":"CASH","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Pramono","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Seto","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sudaryanto","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Purwodianto","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Aris Hidayat","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Ridho/Fika","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Zen","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sunardi","price":100000,"pay":{"Agustus":"TF","September":"TF","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nanang Sudrajad","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Bambang Heru","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Nunung/Edi","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Umi/Siswoyo","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Amin","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sutrasno","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Mbak Lilis","price":100000,"pay":{"Agustus":"CASH","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Esa/Sidik","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Gunawan","price":100000,"pay":{"Agustus":"CASH","September":"CASH","Oktober":"CASH","November":"BELUM","Desember":"BELUM"}},{"name":"Warni/Pranoto","price":100000,"pay":{"Agustus":"TF","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Sudarmadi","price":100000,"pay":{"Agustus":"BELUM","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}},{"name":"Tarom","price":100000,"pay":{"Agustus":"BELUM","September":"BELUM","Oktober":"BELUM","November":"BELUM","Desember":"BELUM"}}];
   try{
     const main=localStorage.getItem("wifiCustomersWiFi");
     const backup=localStorage.getItem("wifiCustomersWiFi_backup");
     const raw=main||backup;
-
     if(raw){
       const saved=JSON.parse(raw);
-      if(Array.isArray(saved) && saved.length>0){
+      if(Array.isArray(saved)&&saved.length){
         const byName={};
-        saved.forEach(c=>{
-          if(c && c.name) byName[String(c.name).trim().toLowerCase()]=c;
-        });
-
-        // Pertahankan semua 34 pelanggan bawaan + pelanggan tambahan.
-        // Data tersimpan untuk nama yang sama tetap dipakai.
-        const result = defaultCustomers.map(base=>{
+        saved.forEach(c=>{if(c&&c.name)byName[String(c.name).trim().toLowerCase()]=c;});
+        const result=defaultCustomers.map(base=>{
           const old=byName[String(base.name).trim().toLowerCase()];
-          if(!old) return base;
-          return {...base,...old};
+          return old?{...base,...old}:base;
         });
-
-        // Tambahkan pelanggan baru yang tidak ada di daftar bawaan.
-        const defaultNames = new Set(
-          defaultCustomers.map(c=>String(c.name).trim().toLowerCase())
-        );
+        const names=new Set(defaultCustomers.map(c=>String(c.name).trim().toLowerCase()));
         saved.forEach(c=>{
-          if(c && c.name){
-            const key=String(c.name).trim().toLowerCase();
-            if(!defaultNames.has(key)){
-              result.push(c);
-            }
-          }
+          if(c&&c.name&&!names.has(String(c.name).trim().toLowerCase())) result.push(c);
         });
-
         return result;
       }
     }
-  }catch(e){
-    console.warn("Gagal membaca data lama, menggunakan 34 pelanggan.",e);
-  }
+  }catch(e){console.warn("Data lokal lama tidak dapat dibaca.",e);}
   return defaultCustomers;
 }
-function showSaved(){
-  const el=document.getElementById("saveStatus");
-  if(el) el.textContent="✓ Data tersimpan";
-}
-function save(){
-  const data=JSON.stringify(customers);
-  try{
-    localStorage.setItem("wifiCustomersWiFi",data);
-    localStorage.setItem("wifiCustomersWiFi_backup",data);
-    localStorage.setItem("wifiCustomersWiFi_savedAt",new Date().toISOString());
-    showSaved();
-  }catch(e){alert("Penyimpanan browser penuh. Gunakan Backup Data.");}
-}
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 
-function getPay(c,year,month){
-  c.payments=c.payments||{};
-  c.payments[year]=c.payments[year]||{};
-  return c.payments[year][month]||"BELUM";
+function setLoginMsg(msg,color){
+  const el=document.getElementById("loginMsg");
+  if(el){el.textContent=msg||"";el.style.color=color||"#e74c3c";}
 }
-function setPay(c,year,month,value){
-  c.payments=c.payments||{};
-  c.payments[year]=c.payments[year]||{};
-  c.payments[year][month]=value;
+function showApp(){
+  document.getElementById("authScreen").style.display="none";
+  document.getElementById("userInfo").style.display="";
+  document.getElementById("logoutBtn").style.display="";
 }
-function migrateOldPayments(){
-  customers.forEach(c=>{
-    if(!c.payments){
-      c.payments={};
-      c.payments[2026]=c.pay||{};
+function showLogin(){
+  document.getElementById("authScreen").style.display="flex";
+  document.getElementById("userInfo").style.display="none";
+  document.getElementById("logoutBtn").style.display="none";
+  document.getElementById("addCustomerBtn").style.display="none";
+}
+function setRoleUI(){
+  document.getElementById("addCustomerBtn").style.display=role==="admin"?"":"none";
+  document.getElementById("userInfo").textContent=(currentUser?.email||"")+
+    " • "+String(role).toUpperCase();
+  document.getElementById("saveStatus").textContent=
+    role==="admin"?"✓ Admin • bisa mengedit":"👁 Viewer • hanya melihat";
+}
+
+async function login(){
+  const email=document.getElementById("loginEmail").value.trim();
+  const password=document.getElementById("loginPassword").value;
+  if(!email||!password){setLoginMsg("Email dan password wajib diisi.");return;}
+  setLoginMsg("Memeriksa akun...","#607d8b");
+  const {data,error}=await sb.auth.signInWithPassword({email,password});
+  if(error){setLoginMsg(error.message);return;}
+  await startSession(data.user);
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  currentUser=null;customers=[];payments=[];role="viewer";
+  showLogin();
+  setLoginMsg("Sudah keluar.","#237a20");
+}
+
+async function startSession(user){
+  currentUser=user;
+  const {data:p,error}=await sb.from("profiles").select("role").eq("id",user.id).single();
+  if(error||!p){
+    await sb.auth.signOut();
+    currentUser=null;
+    setLoginMsg("Akun belum diberi akses.");
+    return;
+  }
+  role=p.role;
+  showApp();
+  setRoleUI();
+  await loadDatabase();
+}
+
+async function loadDatabase(){
+  setLoginMsg("");
+  const [cRes,pRes]=await Promise.all([
+    sb.from("customers").select("*").order("name"),
+    sb.from("payments").select("*")
+  ]);
+  if(cRes.error){alert("Gagal membaca pelanggan: "+cRes.error.message);return;}
+  if(pRes.error){alert("Gagal membaca pembayaran: "+pRes.error.message);return;}
+  customers=cRes.data||[];
+  payments=pRes.data||[];
+
+  /* Migrasi otomatis hanya jika database benar-benar masih kosong dan akun adalah admin. */
+  if(role==="admin" && customers.length===0){
+    const local=loadSavedCustomers();
+    if(local.length>0){
+      const ok=confirm("Database Supabase masih kosong.\n\nData lama di browser akan dipindahkan ke database sekarang ("+
+        local.length+" pelanggan).\n\nLanjutkan?");
+      if(ok){
+        await bootstrapDatabase(local);
+      }
     }
+  }
+  render();
+}
+
+async function bootstrapDatabase(local){
+  const customerRows=local.map(c=>({
+    name:String(c.name||"").trim(),
+    phone:String(c.phone||"").trim()||null,
+    price:Number(c.price||100000)
+  })).filter(c=>c.name);
+  if(!customerRows.length)return;
+  document.getElementById("saveStatus").textContent="⏳ Memindahkan data...";
+  const ins=await sb.from("customers").insert(customerRows).select();
+  if(ins.error){alert("Gagal memindahkan pelanggan: "+ins.error.message);return;}
+  const inserted=ins.data||[];
+  const payRows=[];
+  inserted.forEach((c,i)=>{
+    const src=local[i]||{};
+    years.forEach(y=>{
+      months.forEach((m,mi)=>{
+        let status="BELUM";
+        if(src.payments?.[y]?.[m]!=null) status=src.payments[y][m];
+        else if(y===2026 && src.pay?.[m]!=null) status=src.pay[m];
+        payRows.push({customer_id:c.id,year:y,month:mi+1,status});
+      });
+    });
   });
-  save();
+  for(let i=0;i<payRows.length;i+=500){
+    const chunk=payRows.slice(i,i+500);
+    const r=await sb.from("payments").insert(chunk);
+    if(r.error){alert("Pelanggan sudah masuk, tetapi pembayaran gagal dipindahkan: "+r.error.message);break;}
+  }
+  const [cRes,pRes]=await Promise.all([
+    sb.from("customers").select("*").order("name"),
+    sb.from("payments").select("*")
+  ]);
+  customers=cRes.data||[];payments=pRes.data||[];
+  document.getElementById("saveStatus").textContent="✓ Data tersimpan di Supabase";
 }
-migrateOldPayments();
-localStorage.setItem("wifiDataVersion",DATA_VERSION);
-save();
 
-function render(){
- const m=document.getElementById("month").value, filter=document.getElementById("filter").value, q=document.getElementById("search").value.toLowerCase();
- selectedYear=Number(document.getElementById("year").value);
- const rows=customers.filter(c=>c.name.toLowerCase().includes(q)).filter(c=>{
-   const v=getPay(c,selectedYear,m).toLowerCase();
-   return filter==="all"|| (filter==="paid"&&(v==="cash"||v==="tf")) || (filter==="unpaid"&&v==="belum") || (filter==="notstarted"&&v==="belum mulai langganan") || v===filter;
- });
- let paid=0,unpaid=0,notStarted=0,income=0;
- customers.forEach(c=>{
-   const v=getPay(c,selectedYear,m);
-   if(v==="CASH"||v==="TF"){
-     paid++;
-     income+=Number(c.price||0);
-   }else if(v==="BELUM MULAI LANGGANAN"){
-     notStarted++;
-   }else{
-     unpaid++;
-   }
- });
- document.getElementById("total").textContent=customers.length;
- document.getElementById("paidCount").textContent=paid;
- document.getElementById("unpaidCount").textContent=unpaid;
- document.getElementById("notStartedCount").textContent=notStarted;
- document.getElementById("income").textContent="Rp"+income.toLocaleString("id-ID");
- document.getElementById("tbody").innerHTML=rows.map((c,i)=>`<tr>
- <td>${customers.indexOf(c)+1}</td><td class="name"><b>${esc(c.name)}</b></td>
- ${months.map(x=>statusCell(c,x)).join("")}
- <td>${c.price?("Rp"+Number(c.price).toLocaleString("id-ID")):"-"}</td>
- <td><button class="btn-secondary" onclick="openCustomer(${customers.indexOf(c)})">Edit</button>
- <button class="btn-primary" onclick="downloadEStatement(${customers.indexOf(c)})">PDF</button>
- <button class="btn-danger" onclick="removeCustomer(${customers.indexOf(c)})">Hapus</button></td></tr>`).join("");
+function monthNumber(month){return months.indexOf(month)+1}
+function getPay(c,year,month){
+  const m=monthNumber(month);
+  return payments.find(p=>p.customer_id===c.id&&Number(p.year)===Number(year)&&Number(p.month)===m)?.status||"BELUM";
 }
-function statusCell(c,m){
- const v=getPay(c,selectedYear,m);
- const cls=v==="BELUM"?"unpaid":(v==="BELUM MULAI LANGGANAN"?"notstarted":"paid");
- return `<td><button class="status ${cls}" onclick="cycle(${customers.indexOf(c)},'${m}')">${v}</button></td>`;
+function esc(s){
+  return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
-function cycle(i,m){
- const order=["BELUM","CASH","TF","BELUM MULAI LANGGANAN"];
- const v=getPay(customers[i],selectedYear,m);
- setPay(customers[i],selectedYear,m,order[(order.indexOf(v)+1)%order.length]);
- save();render()
-}
-let editIndex=null;
-function openCustomer(i=null){
- editIndex=i;
- document.getElementById("modalTitle").textContent=i===null?"Tambah Pelanggan":"Edit Pelanggan";
- const c=i===null?{name:"",phone:"",price:""}:customers[i];
- fName.value=c.name;fPhone.value=c.phone||"";fPrice.value=c.price||"";
- document.getElementById("modal").style.display="flex";
-}
-function closeModal(){document.getElementById("modal").style.display="none"}
-function saveCustomer(){
- const name=fName.value.trim();if(!name){alert("Nama pelanggan wajib diisi.");return}
- const obj={name,phone:fPhone.value.trim(),price:Number(fPrice.value||100000),pay:{}};
- if(editIndex===null){
-   obj.payments={};
-   years.forEach(y=>{obj.payments[y]={};months.forEach(m=>obj.payments[y][m]="BELUM")});
-   customers.push(obj)
- } else {
-   obj.payments=customers[editIndex].payments||{};
-   customers[editIndex]=obj
- }
- save();closeModal();render();
-}
-function removeCustomer(i){if(confirm("Hapus pelanggan "+customers[i].name+"?")){customers.splice(i,1);save();render()}}
-
 function rupiah(n){return "Rp"+Number(n||0).toLocaleString("id-ID");}
 function safeFileName(s){return String(s||"").replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").substring(0,60)||"pelanggan";}
 function statementNo(i,year,month){const mi=Math.max(1,months.indexOf(month)+1);return "ES-"+year+String(mi).padStart(2,"0")+"-"+String(i+1).padStart(4,"0");}
+
+function render(){
+  const m=document.getElementById("month").value;
+  const filter=document.getElementById("filter").value;
+  const q=document.getElementById("search").value.toLowerCase();
+  selectedYear=Number(document.getElementById("year").value);
+  const rows=customers.filter(c=>String(c.name||"").toLowerCase().includes(q)).filter(c=>{
+    const v=getPay(c,selectedYear,m).toLowerCase();
+    return filter==="all"||
+      (filter==="paid"&&(v==="cash"||v==="tf"))||
+      (filter==="unpaid"&&v==="belum")||
+      (filter==="notstarted"&&v==="belum mulai langganan")||
+      v===filter;
+  });
+  let paid=0,unpaid=0,notStarted=0,income=0;
+  customers.forEach(c=>{
+    const v=getPay(c,selectedYear,m);
+    if(v==="CASH"||v==="TF"){paid++;income+=Number(c.price||0);}
+    else if(v==="BELUM MULAI LANGGANAN")notStarted++;
+    else unpaid++;
+  });
+  document.getElementById("total").textContent=customers.length;
+  document.getElementById("paidCount").textContent=paid;
+  document.getElementById("unpaidCount").textContent=unpaid;
+  document.getElementById("notStartedCount").textContent=notStarted;
+  document.getElementById("income").textContent="Rp"+income.toLocaleString("id-ID");
+
+  document.getElementById("tbody").innerHTML=rows.map((c,i)=>{
+    const idx=customers.indexOf(c);
+    return `<tr>
+      <td>${idx+1}</td><td class="name"><b>${esc(c.name)}</b></td>
+      ${months.map(x=>statusCell(c,x)).join("")}
+      <td>${c.price?rupiah(c.price):"-"}</td>
+      <td>
+        ${role==="admin"
+          ? `<button class="btn-secondary" onclick="openCustomer(${idx})">Edit</button>
+             <button class="btn-primary" onclick="downloadEStatement(${idx})">PDF</button>
+             <button class="btn-danger" onclick="removeCustomer(${idx})">Hapus</button>`
+          : `<button class="btn-primary" onclick="downloadEStatement(${idx})">PDF</button>`}
+      </td>
+    </tr>`;
+  }).join("");
+}
+function statusCell(c,m){
+  const v=getPay(c,selectedYear,m);
+  const cls=v==="BELUM"?"unpaid":(v==="BELUM MULAI LANGGANAN"?"notstarted":"paid");
+  if(role==="admin"){
+    return `<td><button class="status ${cls}" onclick="cycle('${c.id}','${m}')">${v}</button></td>`;
+  }
+  return `<td><span class="status ${cls} auth-disabled">${v}</span></td>`;
+}
+async function cycle(id,m){
+  if(role!=="admin"){return;}
+  const c=customers.find(x=>x.id===id);if(!c)return;
+  const y=selectedYear,mo=monthNumber(m);
+  const order=["BELUM","CASH","TF","BELUM MULAI LANGGANAN"];
+  const old=getPay(c,y,m);
+  const next=order[(order.indexOf(old)+1)%order.length];
+  const {error}=await sb.from("payments").upsert(
+    {customer_id:id,year:y,month:mo,status:next},
+    {onConflict:"customer_id,year,month"}
+  );
+  if(error){alert("Gagal menyimpan pembayaran: "+error.message);return;}
+  const existing=payments.find(p=>p.customer_id===id&&Number(p.year)===y&&Number(p.month)===mo);
+  if(existing)existing.status=next;
+  else payments.push({customer_id:id,year:y,month:mo,status:next});
+  document.getElementById("saveStatus").textContent="✓ Perubahan tersimpan";
+  render();
+}
+
+function openCustomer(i=null){
+  if(role!=="admin")return;
+  editIndex=i;
+  document.getElementById("modalTitle").textContent=i===null?"Tambah Pelanggan":"Edit Pelanggan";
+  const c=i===null?{name:"",phone:"",price:""}:customers[i];
+  fName.value=c.name||"";fPhone.value=c.phone||"";fPrice.value=c.price||"";
+  document.getElementById("modal").style.display="flex";
+}
+function closeModal(){document.getElementById("modal").style.display="none"}
+
+async function saveCustomer(){
+  if(role!=="admin")return;
+  const name=fName.value.trim();
+  if(!name){alert("Nama pelanggan wajib diisi.");return;}
+  const payload={name,phone:fPhone.value.trim()||null,price:Number(fPrice.value||100000)};
+  if(editIndex===null){
+    const {data,error}=await sb.from("customers").insert(payload).select().single();
+    if(error){alert("Gagal menambah pelanggan: "+error.message);return;}
+    const payRows=[];
+    years.forEach(y=>months.forEach((m,mi)=>payRows.push({customer_id:data.id,year:y,month:mi+1,status:"BELUM"})));
+    for(let i=0;i<payRows.length;i+=500){
+      const r=await sb.from("payments").insert(payRows.slice(i,i+500));
+      if(r.error){alert("Pelanggan berhasil dibuat, tetapi pembayaran awal gagal: "+r.error.message);break;}
+    }
+  }else{
+    const id=customers[editIndex].id;
+    const {error}=await sb.from("customers").update(payload).eq("id",id);
+    if(error){alert("Gagal mengubah pelanggan: "+error.message);return;}
+  }
+  await reloadData();
+  closeModal();
+}
+async function removeCustomer(i){
+  if(role!=="admin")return;
+  const c=customers[i];if(!c)return;
+  if(!confirm("Hapus pelanggan "+c.name+" beserta data pembayarannya?"))return;
+  const {error}=await sb.from("customers").delete().eq("id",c.id);
+  if(error){alert("Gagal menghapus pelanggan: "+error.message);return;}
+  await reloadData();
+}
+async function reloadData(){
+  const [cRes,pRes]=await Promise.all([sb.from("customers").select("*").order("name"),sb.from("payments").select("*")]);
+  if(cRes.error||pRes.error){alert("Gagal memuat ulang data.");return;}
+  customers=cRes.data||[];payments=pRes.data||[];render();
+  document.getElementById("saveStatus").textContent="✓ Data tersimpan di Supabase";
+}
+
+function exportData(){
+  const data=customers.map(c=>{
+    const obj={name:c.name,phone:c.phone||"",price:Number(c.price||0),payments:{}};
+    years.forEach(y=>{obj.payments[y]={};months.forEach(m=>obj.payments[y][m]=getPay(c,y,m));});
+    return obj;
+  });
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-pembayaran-wifi.json";a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+async function importData(e){
+  if(role!=="admin")return;
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const data=JSON.parse(r.result);
+      if(!Array.isArray(data))throw new Error();
+      if(!confirm("Import akan mengganti seluruh data pelanggan di database dengan isi file backup. Lanjutkan?"))return;
+      const {data:old,error:oldErr}=await sb.from("customers").select("id");
+      if(oldErr)throw oldErr;
+      for(const row of old||[]){
+        const del=await sb.from("customers").delete().eq("id",row.id);
+        if(del.error)throw del.error;
+      }
+      const custRows=data.filter(c=>c&&c.name).map(c=>({name:String(c.name),phone:String(c.phone||"").trim()||null,price:Number(c.price||100000)}));
+      if(custRows.length){
+        const ins=await sb.from("customers").insert(custRows).select();
+        if(ins.error)throw ins.error;
+        const payRows=[];
+        ins.data.forEach((c,i)=>{
+          const src=data[i]||{};
+          years.forEach(y=>months.forEach((m,mi)=>{
+            let st=src.payments?.[y]?.[m]||"BELUM";
+            if(y===2026&&src.pay?.[m])st=src.payments?.[y]?.[m]||src.pay[m];
+            payRows.push({customer_id:c.id,year:y,month:mi+1,status:st});
+          }));
+        });
+        for(let i=0;i<payRows.length;i+=500){
+          const rr=await sb.from("payments").insert(payRows.slice(i,i+500));
+          if(rr.error)throw rr.error;
+        }
+      }
+      await reloadData();
+      alert("Data berhasil diimpor ke Supabase.");
+    }catch(err){alert("Import gagal: "+(err?.message||"file tidak valid"));}
+    finally{e.target.value="";}
+  };
+  r.readAsText(file);
+}
+
+/* ================= PDF ================= */
 async function getJsPDF(){
-  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-  // Coba CDN cadangan jika CDN utama gagal dimuat.
+  if(window.jspdf&&window.jspdf.jsPDF)return window.jspdf.jsPDF;
   try{
     await new Promise((resolve,reject)=>{
       const s=document.createElement("script");
       s.src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
-      s.onload=resolve;s.onerror=reject;
-      document.head.appendChild(s);
+      s.onload=resolve;s.onerror=reject;document.head.appendChild(s);
     });
   }catch(e){}
-  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-  alert("Modul PDF tidak berhasil dimuat. Pastikan internet aktif, lalu coba lagi. Jika masih gagal, gunakan tombol Cetak/Simpan PDF pada halaman laporan.");
+  if(window.jspdf&&window.jspdf.jsPDF)return window.jspdf.jsPDF;
+  alert("Modul PDF tidak berhasil dimuat. Pastikan internet aktif.");
   return null;
 }
 function openEStatement(){
@@ -362,32 +566,26 @@ function downloadSelectedStatement(){
   const y=Number(document.getElementById("statementYear").value);
   const m=document.getElementById("statementMonth").value;
   closeEStatement();
-  if(type==="monthly") downloadMonthlyReport(y,m);
-  else if(type==="yearly") downloadYearlyReport(y);
+  if(type==="monthly")downloadMonthlyReport(y,m);
+  else if(type==="yearly")downloadYearlyReport(y);
   else downloadEStatement(Number(document.getElementById("statementCustomer").value),y,m);
 }
 function pdfHeader(doc,title,subtitle){
   doc.setFont("helvetica","bold");doc.setFontSize(18);doc.text("PEMBAYARAN WIFI",20,20);
-  doc.setFontSize(12);doc.text(title,20,29);
-  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(subtitle,20,36);
-  doc.line(20,41,190,41);
+  doc.setFontSize(12);doc.text(title,20,29);doc.setFont("helvetica","normal");doc.setFontSize(9);
+  doc.text(subtitle,20,36);doc.line(20,41,190,41);
 }
 function pdfFooter(doc){
   const pageCount=doc.getNumberOfPages();
-  for(let pg=1;pg<=pageCount;pg++){
-    doc.setPage(pg);doc.setFontSize(8);doc.setTextColor(100);
+  for(let pg=1;pg<=pageCount;pg++){doc.setPage(pg);doc.setFontSize(8);doc.setTextColor(100);
     doc.text("Dokumen dibuat dari aplikasi Pembayaran WiFi",20,285);
-    doc.text("Halaman "+pg+" / "+pageCount,190,285,{align:"right"});
-    doc.setTextColor(0);
-  }
+    doc.text("Halaman "+pg+" / "+pageCount,190,285,{align:"right"});doc.setTextColor(0);}
 }
 async function downloadEStatement(i,year=selectedYear,month=document.getElementById("month").value){
   const JsPDF=await getJsPDF();if(!JsPDF)return;
   const c=customers[i];if(!c){alert("Pelanggan tidak ditemukan.");return;}
   const doc=new JsPDF({unit:"mm",format:"a4"});
-  const status=getPay(c,year,month);
-  const paid=status==="CASH"||status==="TF";
-  const amount=paid?Number(c.price||0):0;
+  const status=getPay(c,year,month),paid=status==="CASH"||status==="TF",amount=paid?Number(c.price||0):0;
   const statusText=paid?"LUNAS":status==="BELUM MULAI LANGGANAN"?"BELUM MULAI LANGGANAN":"BELUM BAYAR";
   const no=statementNo(i,year,month);
   const printed=new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
@@ -395,15 +593,13 @@ async function downloadEStatement(i,year=selectedYear,month=document.getElementB
   doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("INFORMASI PELANGGAN",20,53);
   doc.setFont("helvetica","normal");doc.setFontSize(10);
   const rows=[["Nama Pelanggan",String(c.name||"-")],["No. HP",String(c.phone||"-")],["Paket Bulanan",rupiah(c.price||0)],["Periode",month+" "+year],["Status",statusText],["Metode Pembayaran",paid?status:"-"],["Jumlah Tagihan",rupiah(c.price||0)],["Jumlah Dibayar",rupiah(amount)]];
-  let y=63;
-  rows.forEach(([a,b])=>{doc.setFont("helvetica","bold");doc.text(a,25,y);doc.setFont("helvetica","normal");doc.text(": "+b,75,y);y+=9;});
-  doc.line(20,y+2,190,y+2);
-  doc.setFont("helvetica","bold");doc.setFontSize(12);doc.text("TOTAL DIBAYAR",25,y+13);doc.text(rupiah(amount),190,y+13,{align:"right"});
+  let y=63;rows.forEach(([a,b])=>{doc.setFont("helvetica","bold");doc.text(a,25,y);doc.setFont("helvetica","normal");doc.text(": "+b,75,y);y+=9;});
+  doc.line(20,y+2,190,y+2);doc.setFont("helvetica","bold");doc.setFontSize(12);
+  doc.text("TOTAL DIBAYAR",25,y+13);doc.text(rupiah(amount),190,y+13,{align:"right"});
   doc.setFont("helvetica","normal");doc.setFontSize(9);
   doc.text("Catatan: status dan nominal mengikuti data yang tersimpan pada aplikasi.",20,y+28);
   doc.text("E-Statement ini merupakan bukti pencatatan pembayaran untuk periode yang dipilih.",20,y+35);
-  pdfFooter(doc);
-  doc.save(`E-Statement-${safeFileName(c.name)}-${safeFileName(month)}-${year}.pdf`);
+  pdfFooter(doc);doc.save(`E-Statement-${safeFileName(c.name)}-${safeFileName(month)}-${year}.pdf`);
 }
 async function downloadMonthlyReport(year=selectedYear,month=document.getElementById("month").value){
   const JsPDF=await getJsPDF();if(!JsPDF)return;
@@ -414,10 +610,10 @@ async function downloadMonthlyReport(year=selectedYear,month=document.getElement
   const unpaid=customers.length-paidRows.length-notStarted;
   pdfHeader(doc,"LAPORAN PEMBAYARAN BULANAN",`Periode ${month} ${year} • Dicetak ${new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"})}`);
   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("RINGKASAN",20,53);
-  doc.setFont("helvetica","normal");doc.text(`Total pelanggan: ${customers.length}`,20,61);doc.text(`Sudah bayar: ${paidRows.length}`,20,68);doc.text(`Belum bayar: ${unpaid}`,75,68);doc.text(`Belum mulai: ${notStarted}`,130,68);
+  doc.setFont("helvetica","normal");doc.text(`Total pelanggan: ${customers.length}`,20,61);doc.text(`Sudah bayar: ${paidRows.length}`,20,68);
+  doc.text(`Belum bayar: ${unpaid}`,75,68);doc.text(`Belum mulai: ${notStarted}`,130,68);
   doc.setFont("helvetica","bold");doc.text(`Total pemasukan: ${rupiah(income)}`,20,77);
-  let y=89;
-  const headers=["No","Nama","Status","Metode","Paket","Dibayar"],xs=[20,31,86,123,144,190];
+  let y=89;const headers=["No","Nama","Status","Metode","Paket","Dibayar"],xs=[20,31,86,123,144,190];
   function drawTableHeader(){doc.setFont("helvetica","bold");doc.setFontSize(8);headers.forEach((h,k)=>doc.text(h,xs[k],y,{align:k===5?"right":"left"}));doc.line(20,y+2,190,y+2);y+=8;doc.setFont("helvetica","normal");}
   drawTableHeader();
   customers.forEach((c,i)=>{
@@ -426,78 +622,44 @@ async function downloadMonthlyReport(year=selectedYear,month=document.getElement
     const vals=[String(i+1),String(c.name||"-").substring(0,28),status,paid?v:"-",rupiah(c.price||0),rupiah(paid?c.price||0:0)];
     vals.forEach((val,k)=>doc.text(val,xs[k],y,{align:k===5?"right":"left"}));y+=7;
   });
-  pdfFooter(doc);
-  doc.save(`Laporan-Pembayaran-${safeFileName(month)}-${year}.pdf`);
+  pdfFooter(doc);doc.save(`Laporan-Pembayaran-${safeFileName(month)}-${year}.pdf`);
 }
-
 async function downloadYearlyReport(year=selectedYear){
   const JsPDF=await getJsPDF();if(!JsPDF)return;
   const doc=new JsPDF({unit:"mm",format:"a4"});
   const printed=new Date().toLocaleDateString("id-ID",{day:"2-digit",month:"long",year:"numeric"});
   pdfHeader(doc,"REKAP PEMBAYARAN 1 TAHUN",`Periode Januari–Desember ${year} • Dicetak ${printed}`);
-
   doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("RINGKASAN TAHUNAN",20,53);
   let totalIncome=0,totalPaid=0;
   const monthly=months.map((month,idx)=>{
-    const paidRows=customers.filter(c=>{
-      const v=getPay(c,year,month);
-      return v==="CASH"||v==="TF";
-    });
+    const paidRows=customers.filter(c=>{const v=getPay(c,year,month);return v==="CASH"||v==="TF";});
     const income=paidRows.reduce((s,c)=>s+Number(c.price||0),0);
     const notStarted=customers.filter(c=>getPay(c,year,month)==="BELUM MULAI LANGGANAN").length;
     const unpaid=customers.length-paidRows.length-notStarted;
-    totalIncome+=income; totalPaid+=paidRows.length;
+    totalIncome+=income;totalPaid+=paidRows.length;
     return {no:idx+1,month,paid:paidRows.length,unpaid,notStarted,income};
   });
-
-  doc.setFont("helvetica","normal");doc.setFontSize(9);
-  doc.text(`Total pelanggan: ${customers.length}`,20,61);
-  doc.text(`Total transaksi lunas: ${totalPaid}`,20,68);
-  doc.setFont("helvetica","bold");doc.text(`Total pemasukan setahun: ${rupiah(totalIncome)}`,20,77);
-
-  let y=90;
-  const headers=["No","Bulan","Sudah Bayar","Belum Bayar","Belum Mulai","Pemasukan"];
-  const xs=[20,31,72,105,140,190];
-
-  function drawYearHeader(){
-    doc.setFont("helvetica","bold");doc.setFontSize(8);
-    headers.forEach((h,k)=>doc.text(h,xs[k],y,{align:k===5?"right":"left"}));
-    doc.line(20,y+2,190,y+2);
-    y+=8;
-    doc.setFont("helvetica","normal");
-  }
-
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(`Total pelanggan: ${customers.length}`,20,61);
+  doc.text(`Total transaksi lunas: ${totalPaid}`,20,68);doc.setFont("helvetica","bold");
+  doc.text(`Total pemasukan setahun: ${rupiah(totalIncome)}`,20,77);
+  let y=90;const headers=["No","Bulan","Sudah Bayar","Belum Bayar","Belum Mulai","Pemasukan"],xs=[20,31,72,105,140,190];
+  function drawYearHeader(){doc.setFont("helvetica","bold");doc.setFontSize(8);headers.forEach((h,k)=>doc.text(h,xs[k],y,{align:k===5?"right":"left"}));doc.line(20,y+2,190,y+2);y+=8;doc.setFont("helvetica","normal");}
   drawYearHeader();
-  monthly.forEach(row=>{
-    const vals=[String(row.no),row.month,String(row.paid),String(row.unpaid),String(row.notStarted),rupiah(row.income)];
-    vals.forEach((val,k)=>doc.text(val,xs[k],y,{align:k===5?"right":"left"}));
-    y+=7;
-  });
-
-  y+=5;
-  doc.setFont("helvetica","bold");doc.setFontSize(10);
-  doc.text("CATATAN",20,y);
-  doc.setFont("helvetica","normal");doc.setFontSize(8);
-  doc.text("Angka mengikuti status pembayaran yang tersimpan di aplikasi.",20,y+8);
+  monthly.forEach(row=>{const vals=[String(row.no),row.month,String(row.paid),String(row.unpaid),String(row.notStarted),rupiah(row.income)];vals.forEach((val,k)=>doc.text(val,xs[k],y,{align:k===5?"right":"left"}));y+=7;});
+  y+=5;doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text("CATATAN",20,y);
+  doc.setFont("helvetica","normal");doc.setFontSize(8);doc.text("Angka mengikuti status pembayaran yang tersimpan di aplikasi.",20,y+8);
   doc.text("Bulan yang belum memiliki pembayaran akan tercatat sebagai BELUM.",20,y+15);
-
-  pdfFooter(doc);
-  doc.save(`Rekap-Pembayaran-1-Tahun-${year}.pdf`);
+  pdfFooter(doc);doc.save(`Rekap-Pembayaran-1-Tahun-${year}.pdf`);
 }
 
-function exportData(){
- const blob=new Blob([JSON.stringify(customers,null,2)],{type:"application/json"});
- const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="backup-pembayaran-wifi.json";a.click();URL.revokeObjectURL(a.href)
+async function init(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session)await startSession(session.user);else showLogin();
+  sb.auth.onAuthStateChange(async(_event,session)=>{
+    if(session&&!currentUser)await startSession(session.user);
+  });
 }
-function importData(e){
- const file=e.target.files[0];if(!file)return;const r=new FileReader();
- r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data))throw 0;customers=data;migrateOldPayments();save();render();alert("Data berhasil diimpor.")}catch{alert("File backup tidak valid.")}};
- r.readAsText(file);e.target.value="";
-}
-render();
-window.addEventListener("beforeunload",()=>{try{save()}catch(e){}});
-window.addEventListener("pagehide",()=>{try{save()}catch(e){}});
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"){try{save()}catch(e){}}});
+init();
 </script>
 </body>
 </html>
