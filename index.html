@@ -27,7 +27,7 @@ body{overflow-x:hidden}
   .table-wrap{border-radius:10px}
   table{min-width:980px}
   th,td{padding:8px 7px}
-  .status{min-width:108px;padding:8px 9px;font-size:11px}
+  .status{min-width:112px;padding:8px 9px;font-size:10.5px}
   .modal{width:100%;padding:16px}
   .form-grid{grid-template-columns:1fr}
   .actions button{min-height:42px}
@@ -60,9 +60,34 @@ th{background:#455a64;color:#fff;position:sticky;top:0;z-index:2}
 th.name,td.name{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
 th.name{background:#455a64;z-index:3}
 .no{width:55px}
-.status{min-width:95px;padding:7px 10px;border-radius:15px;font-weight:700;font-size:12px;border:0}
-.paid{background:#d9f2c7;color:#237a20}.unpaid{background:#e74c3c;color:#fff}
-.empty{background:#eceff1;color:#607d8b}.notstarted{background:#fff3cd;color:#856404}
+/* STATUS PEMBAYARAN — tampilan klasik/elegan, fungsi tetap sama */
+.status{
+  min-width:118px;
+  min-height:36px;
+  padding:8px 12px;
+  border-radius:10px;
+  font-weight:700;
+  font-size:11px;
+  line-height:1.15;
+  letter-spacing:.2px;
+  border:1px solid transparent;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  white-space:nowrap;
+  box-shadow:0 1px 3px #00000012;
+  transition:transform .15s ease,box-shadow .15s ease,filter .15s ease;
+}
+.status:hover{transform:translateY(-1px);box-shadow:0 3px 8px #00000018;filter:brightness(.98)}
+.status:active{transform:translateY(0);box-shadow:0 1px 3px #00000012}
+.status.cash{background:#e9f7ef;color:#18794e;border-color:#b9e5cd}
+.status.tf{background:#eaf2ff;color:#2457a6;border-color:#bfd3f5}
+.status.unpaid{background:#fff0f0;color:#b42318;border-color:#f3c1bd}
+.status.notstarted{background:#fff6df;color:#946200;border-color:#efd79b}
+.status.auth-disabled{cursor:default!important;opacity:1}
+.status.auth-disabled:hover{transform:none;box-shadow:0 1px 3px #00000012;filter:none}
+
 .footer{margin:14px 0;color:#607d8b;font-size:12px}
 .modal-bg{display:none;position:fixed;inset:0;background:#0008;align-items:center;justify-content:center;padding:20px;z-index:10}
 .modal{background:#fff;border-radius:14px;padding:20px;width:min(500px,100%);box-shadow:0 10px 30px #0006}.modal-wide{width:min(720px,100%)}.modal-note{font-size:12px;color:#607d8b;line-height:1.5;margin-top:8px}
@@ -414,11 +439,14 @@ function render(){
 }
 function statusCell(c,m){
   const v=getPay(c,selectedYear,m);
-  const cls=v==="BELUM"?"unpaid":(v==="BELUM MULAI LANGGANAN"?"notstarted":"paid");
+  let cls="unpaid",label="⏳ BELUM";
+  if(v==="CASH"){cls="cash";label="💵 CASH";}
+  else if(v==="TF"){cls="tf";label="🏦 TF";}
+  else if(v==="BELUM MULAI LANGGANAN"){cls="notstarted";label="🔒 BELUM MULAI";}
   if(role==="admin"){
-    return `<td><button class="status ${cls}" onclick="cycle('${c.id}','${m}')">${v}</button></td>`;
+    return `<td><button class="status ${cls}" title="Klik untuk mengubah status" onclick="cycle('${c.id}','${m}')">${label}</button></td>`;
   }
-  return `<td><span class="status ${cls} auth-disabled">${v}</span></td>`;
+  return `<td><span class="status ${cls} auth-disabled">${label}</span></td>`;
 }
 async function cycle(id,m){
   if(role!=="admin"){return;}
