@@ -97,17 +97,12 @@ button[disabled]{opacity:.55;cursor:not-allowed}
   <div class="login-box">
     <h1>PEMBAYARAN WIFI</h1>
     <p>Silakan masuk untuk membuka data pembayaran yang tersimpan di server.</p>
-    <label>Email
-      <input id="loginEmail" type="email" autocomplete="username" placeholder="Email">
-    </label>
-    <label>Password
-      <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">
-    </label>
+    <label>Email<input id="loginEmail" type="email" autocomplete="username" placeholder="Email"></label>
+    <label>Password<input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password"></label>
     <button class="login-btn" onclick="login()">Masuk</button>
     <div class="login-error" id="loginError"></div>
   </div>
 </div>
-
 <div id="app">
 
 <header>
@@ -196,7 +191,25 @@ button[disabled]{opacity:.55;cursor:not-allowed}
       </label>
       <label>Jenis
         <select id="statementType" style="width:100%;margin-top:5px">
-          <option value="individual">E-Statem<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+          <option value="individual">E-Statement Per Pelanggan</option>
+          <option value="monthly">Rekap Semua Pelanggan (1 Bulan)</option>
+          <option value="yearly">Rekap 1 Tahun (Januari–Desember)</option>
+        </select>
+      </label>
+    </div>
+    <div class="modal-note">
+      E-Statement per pelanggan cocok seperti tagihan bulanan. Rekap semua pelanggan membuat satu PDF berisi status dan pemasukan pada bulan yang dipilih. Rekap 1 Tahun membuat laporan Januari–Desember untuk tahun yang dipilih.
+    </div>
+    <div class="actions">
+      <button class="btn-secondary" onclick="closeEStatement()">Batal</button>
+      <button class="btn-primary" onclick="downloadSelectedStatement()">⬇ Download PDF</button>
+    </div>
+  </div>
+</div>
+
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL="https://bkfljgqszrhmlodtlacr.supabase.co";
