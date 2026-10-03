@@ -60,7 +60,7 @@ th{background:#455a64;color:#fff;position:sticky;top:0;z-index:2}
 th.name,td.name{text-align:left;position:sticky;left:0;background:#fff;z-index:1}
 th.name{background:#455a64;z-index:3}
 .no{width:55px}
-.status{min-width:95px;padding:7px 10px;border-radius:15px;font-weight:700;font-size:12px;border:0;cursor:pointer;touch-action:manipulation}.status.viewer{cursor:default;opacity:.85}.status.viewer{cursor:default;opacity:.92}
+.status{min-width:95px;padding:7px 10px;border-radius:15px;font-weight:700;font-size:12px;border:0;cursor:pointer !important;touch-action:manipulation;pointer-events:auto !important;position:relative;z-index:10}.status.viewer{cursor:default;opacity:.85}.status.viewer{cursor:default;opacity:.92}
 .paid{background:#d9f2c7;color:#237a20}.unpaid{background:#e74c3c;color:#fff}
 .empty{background:#eceff1;color:#607d8b}.notstarted{background:#fff3cd;color:#856404}
 .footer{margin:14px 0;color:#607d8b;font-size:12px}
@@ -473,21 +473,30 @@ async function savePaymentToServer(customerId,year,month,status){
   }
 }
 
-// INI SATU-SATUNYA fungsi cycle untuk tombol CASH / TF / BELUM.
-// Jangan membuat fungsi cycle kedua di bawahnya karena akan menimpa fungsi ini.
+// Tombol status menggunakan event delegation agar tetap berfungsi setelah render ulang.
 async function cycle(i,m){
+  if(paymentSaving) return;
   if(!isAdmin()){
     alert("Akun Anda hanya memiliki akses melihat. Hanya admin yang dapat mengubah pembayaran.");
     return;
   }
   const c=customers[i];
-  if(!c || !c.id) return;
+  if(!c || !c.id){
+    alert("Pelanggan belum memiliki ID server. Klik Sinkronkan lalu coba lagi.");
+    return;
+  }
 
   const order=["BELUM","CASH","TF","BELUM MULAI LANGGANAN"];
   const old=getPay(c,selectedYear,m);
-  const next=order[(Math.max(0,order.indexOf(old))+1)%order.length];
+  const pos=order.indexOf(old);
+  const next=order[(pos<0?0:pos+1)%order.length];
 
+  // Ubah tampilan lebih dulu supaya klik langsung terlihat.
+  paymentSaving=true;
+  setLocalPay(c,selectedYear,m,next);
+  render();
   showSaved("⏳ Menyimpan...");
+
   try{
     const saved=await savePaymentToServer(c.id,selectedYear,m,next);
     const idx=payments.findIndex(p=>String(p.customer_id)===String(c.id)&&Number(p.year)===Number(selectedYear)&&Number(p.month)===monthNumber(m));
@@ -495,13 +504,26 @@ async function cycle(i,m){
     else payments.push(saved);
     render();
     showSaved("✓ Tersimpan di server");
+    paymentSaving=false;
   }catch(e){
     console.error("PAYMENT SAVE ERROR",e);
+    // Kembalikan tampilan jika server menolak penyimpanan.
+    setLocalPay(c,selectedYear,m,old);
+    render();
     showSaved("❌ Gagal menyimpan");
     alert("Gagal menyimpan pembayaran ke server.\n\n"+(e.message||e));
+    paymentSaving=false;
   }
 }
 
+document.addEventListener("click",function(e){
+  const btn=e.target.closest && e.target.closest("button.status");
+  if(!btn) return;
+  const id=btn.getAttribute("data-customer-id");
+  const month=btn.getAttribute("data-month");
+  const idx=customers.findIndex(c=>String(c.id)===String(id));
+  if(idx>=0) cycle(idx,month);
+});
 async function deleteCustomerFromServer(id){
   if(!isAdmin()) throw new Error("Akun ini hanya memiliki akses melihat.");
   const {error}=await sb.from("customers").delete().eq("id",id);
@@ -575,7 +597,7 @@ function render(){
 function statusCell(c,m){
  const v=getPay(c,selectedYear,m);
  const cls=v==="BELUM"?"unpaid":(v==="BELUM MULAI LANGGANAN"?"notstarted":"paid");
- return `<td><button class="status ${cls} ${isAdmin()?"":"viewer"}" onclick="cycle(${customers.indexOf(c)},'${m}')">${v}</button></td>`;
+ return `<td><button type="button" class="status ${cls} ${isAdmin()?"":"viewer"}" data-customer-id="${esc(c.id||"")}" data-month="${esc(m)}">${v}</button></td>`;
 }
 let editIndex=null;
 function openCustomer(i=null){
@@ -831,6 +853,7 @@ const SUPABASE_PUBLISHABLE_KEY="sb_publishable_CN66Bs-42WWGcZ4htx_Z0w_PyxBRx4g";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 
 let syncTimer=null;
+let paymentSaving=false;
 sb.auth.onAuthStateChange(async (_event,session)=>{
   currentUser=session?.user||null;
   if(session){
